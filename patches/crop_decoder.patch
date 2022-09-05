@@ -1,0 +1,163 @@
+diff --git a/jdcolor.c b/jdcolor.c
+index 8da2b4ea..c5b82279 100644
+--- a/jdcolor.c
++++ b/jdcolor.c
+@@ -516,6 +516,35 @@ rgb_rgb_convert(j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
+   }
+ }
+ 
++/*
++ * Convert CMYK to RGBA
++ */
++METHODDEF(void)
++cmyk_rgba_convert(j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
++    JDIMENSION input_row, JSAMPARRAY output_buf, int num_rows)
++{
++    register JSAMPROW inptr0, inptr1, inptr2, inptr3;
++    register JSAMPROW outptr;
++    register JDIMENSION col;
++    JDIMENSION num_cols = cinfo->output_width;
++
++    while (--num_rows >= 0) {
++        inptr0 = input_buf[0][input_row];
++        inptr1 = input_buf[1][input_row];
++        inptr2 = input_buf[2][input_row];
++        inptr3 = input_buf[3][input_row];
++        input_row++;
++        outptr = *output_buf++;
++        for (col = 0; col < num_cols; col++) {
++            int k_diff = inptr3[col];
++            outptr[0] = (inptr0[col] * k_diff >> 8) + 1;
++            outptr[1] = (inptr1[col] * k_diff >> 8) + 1;
++            outptr[2] = (inptr2[col] * k_diff >> 8) + 1;
++            outptr[3] = 0xFF;
++            outptr += 4;
++        }
++    }
++}
+ 
+ /*
+  * Adobe-style YCCK->CMYK conversion.
+@@ -820,6 +849,8 @@ jinit_color_deconverter(j_decompress_ptr cinfo)
+         cconvert->pub.color_convert = null_convert;
+       else
+         cconvert->pub.color_convert = rgb_rgb_convert;
++    } else if (cinfo->jpeg_color_space == JCS_CMYK) {
++        cconvert->pub.color_convert = cmyk_rgba_convert;
+     } else
+       ERREXIT(cinfo, JERR_CONVERSION_NOTIMPL);
+     break;
+diff --git a/turbojpeg.c b/turbojpeg.c
+index a1544f24..85c2fa6a 100644
+--- a/turbojpeg.c
++++ b/turbojpeg.c
+@@ -1292,6 +1292,94 @@ DLLEXPORT tjscalingfactor *tjGetScalingFactors(int *numscalingfactors)
+   return (tjscalingfactor *)sf;
+ }
+ 
++DLLEXPORT int tjDecompressWithCropping(tjhandle handle, const unsigned char *jpegBuf,
++                                       unsigned long jpegSize, unsigned char *dstBuf,
++                                       int width, int pitch, int height, int cropX,
++                                       int cropY, int pixelFormat, int flags)
++{
++  JSAMPROW *row_pointer = NULL;
++  int i, retval = 0, scaledw, scaledh, max_scanline;
++  struct my_progress_mgr progress;
++
++  GET_DINSTANCE(handle);
++  this->jerr.stopOnWarning = (flags & TJFLAG_STOPONWARNING) ? TRUE : FALSE;
++  if ((this->init & DECOMPRESS) == 0)
++    THROW("tjDecompress2(): Instance has not been initialized for decompression");
++
++  if (jpegBuf == NULL || jpegSize <= 0 || dstBuf == NULL || width < 0 ||
++      pitch < 0 || height < 0 || pixelFormat < 0 || pixelFormat >= TJ_NUMPF)
++    THROW("tjDecompress2(): Invalid argument");
++
++#ifndef NO_PUTENV
++  if (flags & TJFLAG_FORCEMMX) putenv("JSIMD_FORCEMMX=1");
++  else if (flags & TJFLAG_FORCESSE) putenv("JSIMD_FORCESSE=1");
++  else if (flags & TJFLAG_FORCESSE2) putenv("JSIMD_FORCESSE2=1");
++#endif
++
++  if (flags & TJFLAG_LIMITSCANS) {
++    MEMZERO(&progress, sizeof(struct my_progress_mgr));
++    progress.pub.progress_monitor = my_progress_monitor;
++    progress.this = this;
++    dinfo->progress = &progress.pub;
++  } else
++    dinfo->progress = NULL;
++
++  if (setjmp(this->jerr.setjmp_buffer)) {
++    /* If we get here, the JPEG code has signaled an error. */
++    retval = -1;  goto bailout;
++  }
++
++  jpeg_mem_src_tj(dinfo, jpegBuf, jpegSize);
++  jpeg_read_header(dinfo, TRUE);
++  this->dinfo.out_color_space = pf2cs[pixelFormat];
++  if (flags & TJFLAG_FASTDCT) this->dinfo.dct_method = JDCT_FASTEST;
++  if (flags & TJFLAG_FASTUPSAMPLE) dinfo->do_fancy_upsampling = FALSE;
++
++  dinfo->scale_num   = 1;
++  dinfo->scale_denom = 1;
++
++  jpeg_start_decompress(dinfo);
++  if (pitch == 0) pitch = width * tjPixelSize[pixelFormat];
++
++  if ((row_pointer = (JSAMPROW *)malloc(sizeof(JSAMPROW) * height)) == NULL)
++    THROW("tjDecompress2(): Memory allocation failure");
++  if (setjmp(this->jerr.setjmp_buffer)) {
++    /* If we get here, the JPEG code has signaled an error. */
++    retval = -1;
++    goto bailout;
++  }
++  for (i = 0; i < (int)height; i++) {
++    if (flags & TJFLAG_BOTTOMUP)
++      row_pointer[i] = &dstBuf[(height - i - 1) * (size_t)pitch];
++    else
++      row_pointer[i] = &dstBuf[i * (size_t)pitch];
++  }
++
++  if (cropX > 0) {
++    jpeg_crop_scanline(dinfo, &cropX, &width);
++  }
++  if (cropY > 0) {
++    if (jpeg_skip_scanlines(dinfo, cropY) != cropY) {
++      printf("Failed to crop image");
++    }
++  }
++
++  max_scanline = cropY + height;
++  while (dinfo->output_scanline < max_scanline) {
++    jpeg_read_scanlines(dinfo, &row_pointer[dinfo->output_scanline - cropY],
++                        max_scanline - dinfo->output_scanline);
++  }
++  jpeg_skip_scanlines(dinfo, dinfo->output_height - max_scanline);
++  jpeg_finish_decompress(dinfo);
++
++bailout:
++  if (dinfo->global_state > DSTATE_START) jpeg_abort_decompress(dinfo);
++  free(row_pointer);
++  if (this->jerr.warning) retval = -1;
++  this->jerr.stopOnWarning = FALSE;
++  return retval;
++}
++
+ 
+ DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
+                             unsigned long jpegSize, unsigned char *dstBuf,
+diff --git a/turbojpeg.h b/turbojpeg.h
+index 02b54ca9..62f159f0 100644
+--- a/turbojpeg.h
++++ b/turbojpeg.h
+@@ -1240,6 +1240,10 @@ DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
+                             int width, int pitch, int height, int pixelFormat,
+                             int flags);
+ 
++DLLEXPORT int tjDecompressWithCropping(tjhandle handle, const unsigned char *jpegBuf,
++                                       unsigned long jpegSize, unsigned char *dstBuf,
++                                       int width, int pitch, int height, int cropX,
++                                       int cropY, int pixelFormat, int flags);
+ 
+ /**
+  * Decompress a JPEG image to a YUV planar image.  This function performs JPEG
