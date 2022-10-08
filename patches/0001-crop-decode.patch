@@ -1,52 +1,13 @@
-diff --git a/jdcolor.c b/jdcolor.c
-index 8da2b4ea..c5b82279 100644
---- a/jdcolor.c
-+++ b/jdcolor.c
-@@ -516,6 +516,35 @@ rgb_rgb_convert(j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
-   }
- }
- 
-+/*
-+ * Convert CMYK to RGBA
-+ */
-+METHODDEF(void)
-+cmyk_rgba_convert(j_decompress_ptr cinfo, JSAMPIMAGE input_buf,
-+    JDIMENSION input_row, JSAMPARRAY output_buf, int num_rows)
-+{
-+    register JSAMPROW inptr0, inptr1, inptr2, inptr3;
-+    register JSAMPROW outptr;
-+    register JDIMENSION col;
-+    JDIMENSION num_cols = cinfo->output_width;
-+
-+    while (--num_rows >= 0) {
-+        inptr0 = input_buf[0][input_row];
-+        inptr1 = input_buf[1][input_row];
-+        inptr2 = input_buf[2][input_row];
-+        inptr3 = input_buf[3][input_row];
-+        input_row++;
-+        outptr = *output_buf++;
-+        for (col = 0; col < num_cols; col++) {
-+            int k_diff = inptr3[col];
-+            outptr[0] = (inptr0[col] * k_diff >> 8) + 1;
-+            outptr[1] = (inptr1[col] * k_diff >> 8) + 1;
-+            outptr[2] = (inptr2[col] * k_diff >> 8) + 1;
-+            outptr[3] = 0xFF;
-+            outptr += 4;
-+        }
-+    }
-+}
- 
- /*
-  * Adobe-style YCCK->CMYK conversion.
-@@ -820,6 +849,8 @@ jinit_color_deconverter(j_decompress_ptr cinfo)
-         cconvert->pub.color_convert = null_convert;
-       else
-         cconvert->pub.color_convert = rgb_rgb_convert;
-+    } else if (cinfo->jpeg_color_space == JCS_CMYK) {
-+        cconvert->pub.color_convert = cmyk_rgba_convert;
-     } else
-       ERREXIT(cinfo, JERR_CONVERSION_NOTIMPL);
-     break;
+From ef0a56b0ff2cd9f2e45d89abaecc2b9d83c2c359 Mon Sep 17 00:00:00 2001
+From: "Ma, Liangliang" <liangliang.ma@intel.com>
+Date: Sat, 8 Oct 2022 01:26:48 +0000
+Subject: [PATCH] crop decode
+
+---
+ turbojpeg.c | 88 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ turbojpeg.h |  4 +++
+ 2 files changed, 92 insertions(+)
+
 diff --git a/turbojpeg.c b/turbojpeg.c
 index a1544f24..85c2fa6a 100644
 --- a/turbojpeg.c
@@ -161,3 +122,6 @@ index 02b54ca9..62f159f0 100644
  
  /**
   * Decompress a JPEG image to a YUV planar image.  This function performs JPEG
+-- 
+2.25.1
+
