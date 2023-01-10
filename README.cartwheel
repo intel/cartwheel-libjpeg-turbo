@@ -9,7 +9,7 @@ The upstream project is tracked as a submodule in this repo.
 
 ## clone
 ```shell
-$ git clone https://github.com/intel-media-ci/cartwheel-libjpeg-turbo --recursive
+$ git clone https://github.com/intel/cartwheel-libjpeg-turbo --recursive
 ```
 
 ## apply patches
