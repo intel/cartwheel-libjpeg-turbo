@@ -1,7 +1,7 @@
-From ef0a56b0ff2cd9f2e45d89abaecc2b9d83c2c359 Mon Sep 17 00:00:00 2001
+From 913d62aca668dd41560f9737c11713ad6e696f76 Mon Sep 17 00:00:00 2001
 From: "Ma, Liangliang" <liangliang.ma@intel.com>
 Date: Sat, 8 Oct 2022 01:26:48 +0000
-Subject: [PATCH] crop decode
+Subject: [PATCH 2/2] crop decode
 
 ---
  turbojpeg.c | 88 +++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -9,10 +9,10 @@ Subject: [PATCH] crop decode
  2 files changed, 92 insertions(+)
 
 diff --git a/turbojpeg.c b/turbojpeg.c
-index a1544f24..85c2fa6a 100644
+index a04e893c8cd5..b1020a4b0aa5 100644
 --- a/turbojpeg.c
 +++ b/turbojpeg.c
-@@ -1292,6 +1292,94 @@ DLLEXPORT tjscalingfactor *tjGetScalingFactors(int *numscalingfactors)
+@@ -1293,6 +1293,94 @@ DLLEXPORT tjscalingfactor *tjGetScalingFactors(int *numscalingfactors)
    return (tjscalingfactor *)sf;
  }
  
@@ -41,7 +41,7 @@ index a1544f24..85c2fa6a 100644
 +#endif
 +
 +  if (flags & TJFLAG_LIMITSCANS) {
-+    MEMZERO(&progress, sizeof(struct my_progress_mgr));
++    memset(&progress, 0, sizeof(struct my_progress_mgr));
 +    progress.pub.progress_monitor = my_progress_monitor;
 +    progress.this = this;
 +    dinfo->progress = &progress.pub;
@@ -108,7 +108,7 @@ index a1544f24..85c2fa6a 100644
  DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
                              unsigned long jpegSize, unsigned char *dstBuf,
 diff --git a/turbojpeg.h b/turbojpeg.h
-index 02b54ca9..62f159f0 100644
+index 02b54ca99ccd..62f159f0dd93 100644
 --- a/turbojpeg.h
 +++ b/turbojpeg.h
 @@ -1240,6 +1240,10 @@ DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
@@ -123,5 +123,5 @@ index 02b54ca9..62f159f0 100644
  /**
   * Decompress a JPEG image to a YUV planar image.  This function performs JPEG
 -- 
-2.25.1
+2.38.1
 
