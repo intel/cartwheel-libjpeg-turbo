@@ -1,4 +1,4 @@
-From 913d62aca668dd41560f9737c11713ad6e696f76 Mon Sep 17 00:00:00 2001
+From 7fedcea820a929e28dd0f573878f0cdbd7498e33 Mon Sep 17 00:00:00 2001
 From: "Ma, Liangliang" <liangliang.ma@intel.com>
 Date: Sat, 8 Oct 2022 01:26:48 +0000
 Subject: [PATCH 2/2] crop decode
@@ -9,10 +9,10 @@ Subject: [PATCH 2/2] crop decode
  2 files changed, 92 insertions(+)
 
 diff --git a/turbojpeg.c b/turbojpeg.c
-index a04e893c8cd5..b1020a4b0aa5 100644
+index 05cdf491..03c0a15d 100644
 --- a/turbojpeg.c
 +++ b/turbojpeg.c
-@@ -1293,6 +1293,94 @@ DLLEXPORT tjscalingfactor *tjGetScalingFactors(int *numscalingfactors)
+@@ -1321,6 +1321,94 @@ DLLEXPORT tjscalingfactor *tjGetScalingFactors(int *numScalingFactors)
    return (tjscalingfactor *)sf;
  }
  
@@ -105,13 +105,13 @@ index a04e893c8cd5..b1020a4b0aa5 100644
 +}
 +
  
+ /* TurboJPEG 1.2+ */
  DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
-                             unsigned long jpegSize, unsigned char *dstBuf,
 diff --git a/turbojpeg.h b/turbojpeg.h
-index 02b54ca99ccd..62f159f0dd93 100644
+index e6bdf5fb..edfd4785 100644
 --- a/turbojpeg.h
 +++ b/turbojpeg.h
-@@ -1240,6 +1240,10 @@ DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
+@@ -1247,6 +1247,10 @@ DLLEXPORT int tjDecompress2(tjhandle handle, const unsigned char *jpegBuf,
                              int width, int pitch, int height, int pixelFormat,
                              int flags);
  
@@ -121,7 +121,7 @@ index 02b54ca99ccd..62f159f0dd93 100644
 +                                       int cropY, int pixelFormat, int flags);
  
  /**
-  * Decompress a JPEG image to a YUV planar image.  This function performs JPEG
+  * Decompress a JPEG image into a unified planar YUV image.  This function
 -- 
-2.38.1
+2.25.1
 
